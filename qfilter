@@ -1,23 +1,78 @@
-#/bin/bash
-## qfilter by Röbbe Wünschiers / Version 1.0
-while getopts "p:s:m:l:h" opt; do
-  case $opt in
-     h) echo "show_help";
-        exit 1 ;;
-     p) Percent=${OPTARG} ;;
-     s) Phred=${OPTARG} ;;
-     m) Min=${OPTARG} ;;
-     l) Log=${OPTARG} ;;
-     *) echo "exit" ;;
+#!/bin/bash
+# qfilter by Röbbe Wünschiers / Version 2.0
+# Set some default values:
+
+HELP=0
+PERCENT_MIN_NT_PHRED_SCORE=100
+MIN_NT_PHRED_SCORE=10
+MIN_AVG_PHRED_SCORE=12
+MIN_READ_LENGTH=800
+MAX_READ_LENGTH=50000
+LOG_FILE=0
+LOG_FILE_NAME="rwfilter.log"
+
+usage()
+{
+  echo "
+qfilter V2.0 by Röbbe Wünschiers
+
+qfilter filters FASTQ files by PHRED quality and read length. You can set a minimum (-x) and maximum (-y) required read length. You can set a minimum PHRED score (-s) EVERY nucleotide in a read must have or the minimum PHRED score that a least x percent (-p) of all nucleotides of a read must have. Then you can set the average PHRED score (-m) a read should have.
+The output to STDOUT contains all matching reads (filtered). If logging (-l) is enabled, annotations are added to the identifier line. The optional logfile (-l or -lFILENAME) contains ALL reads (not filtered) with annotation in the identifier line.
+
+Usage: alphabet [ -h | --help ]
+                [ -p | --percent-min-phred-score PERCENT_MIN_NT_PHRED_SCORE]    default: $PERCENT_MIN_NT_PHRED_SCORE
+                [ -s | --min-nt-phred-score MIN_NT_PHRED_SCORE ]                default: $MIN_AVG_PHRED_SCORE
+                [ -m | --min-avg-phred-score MIN_AVG_PHRED_SCORE ]              default: $MIN_AVG_PHRED_SCORE
+                [ -x | --min-read-length MIN_READ_LENGTH ]                      default: $MIN_READ_LENGTH
+                [ -y | --max-read-length MAX_READ_LENGTH ]                      default: $MAX_READ_LENGTH
+                [ -l | --log-file ][LOGFILENAME] fastqfilename(s)               default: $LOG_FILE_NAME | NO SPACE: -lLOGFILENAME"
+  exit 2
+}
+
+if [ $# -eq 0 ]; then
+        usage
+fi
+
+PARSED_ARGUMENTS=$(getopt -n usage -o hp:s:m:l::x:y: -l help,percent-min-phred-score:,min-nt-phred-score:,min-avg-phred-score:,log-file::,min-read-length:,max-read-lengt: -- "$@")
+VALID_ARGUMENTS=$?
+if [ "$VALID_ARGUMENTS" != "0" ]; then
+  usage
+fi
+
+# echo "PARSED_ARGUMENTS is $PARSED_ARGUMENTS"
+eval set -- "$PARSED_ARGUMENTS"
+while :
+do
+  case "$1" in
+    -h | --help)   usage      ; shift   ;;
+    -p | --percent-min-phred-score)   PERCENT_MIN_NT_PHRED_SCORE="$2"      ; shift 2  ;;
+    -s | --min-nt-phred-score) MIN_NT_PHRED_SCORE="$2" ; shift 2 ;;
+    -m | --min-avg-phred-score)   MIN_AVG_PHRED_SCORE="$2"   ; shift 2 ;;
+    -x | --min-read-length)   MIN_READ_LENGTH="$2"   ; shift 2 ;;
+    -y | --max-read-length)  MAX_READ_LENGTH="$2"   ; shift 2 ;;
+    -l | --log-file)   LOG_FILE=1;   LOG_FILE_NAME="$2"; shift 2 ;;
+    # -- means the end of the arguments; drop this, and break out of the while loop
+    --) shift; break ;;
+    # If invalid options were passed, then getopt should have reported an error,
+    # which we checked as VALID_ARGUMENTS when getopt was called...
+    *) echo "Unexpected option: $1 - this should not happen."
+       usage ;;
   esac
 done
 
-if [ "$#" -ne 9 ]; then
-  echo "Usage: $0 -s MIN_NT_PHRED_SCORE -p PERCENT_MIN_NT_PHRED_SCORE -m MIN_AVG_PHRED_SCORE -l LOG_FILE(y/n) [ -h ]" INPUT_FASTQ_FILE 1>&2
-  exit 1
-fi
+if [[ -z $LOG_FILE_NAME ]]; then LOG_FILE_NAME="rwfilter.log"; fi
 
-cat $9 | paste - - - - | awk -F"\t" -v percent=$Percent -v phred=$Phred -v minphred=$Min -v loggen=$Log '
+#echo "LOG -$LOG_FILE- -$LOG_FILE_NAME-"
+#echo "HELP   : $HELP"
+#echo "PERCENT_MIN_NT_PHRED_SCORE   : $PERCENT_MIN_NT_PHRED_SCORE "
+#echo "MIN_NT_PHRED_SCORE : $MIN_NT_PHRED_SCORE"
+#echo "MIN_AVG_PHRED_SCORE   : $MIN_AVG_PHRED_SCORE"
+#echo "MIN_READ_LENGTH   : $MIN_READ_LENGTH"
+#echo "MAX_READ_LENGTH   : $MAX_READ_LENGTH"
+#echo "LOG_FILE : $LOG_FILE"
+#echo "Parameters remaining are: $@"
+
+cat $@ | paste - - - - | awk -F"\t" -v logfile=$LOG_FILE_NAME -v percent=$PERCENT_MIN_NT_PHRED_SCOR -v phred=$MIN_NT_PHRED_SCORE -v minphred=$MIN_AVG_PHRED_SCORE -v loggen=$LOG_FILE -v minlen=$MIN_READ_LENGTH -v maxlen=$MAX_READ_LENGTH '
 BEGIN{for(n=0;n<256;n++)ord[sprintf("%c",n)]=n}
 {hit=0; min=255; max=0; sum=0;
 l=length($4); split($4,qual,"");
@@ -34,15 +89,15 @@ for(i in qual){
 
 # print l,hit, hit/l*100, min, max, sum/l ;print "-";
 
-if(loggen == "y"){
-  print $1" #LOG# len="l" perc_match_nt="hit/l*100" min_phred="min" max_phred="max" match_phred="hit" avg_phred="sum/l > "rwfilter.log"
-  print $2 >> "rwfilter.log"
-  print $3 >> "rwfilter.log"
-  print $4 >> "rwfilter.log"
+if(loggen == 1){
+  print $1" #LOG# len="l" perc_match_nt="hit/l*100" min_phred="min" max_phred="max" match_phred="hit" avg_phred="sum/l > logfile
+  print $2 >> logfile
+  print $3 >> logfile
+  print $4 >> logfile
   }
 
-if(hit/l*100 >= percent && sum/l >= minphred){
-  if(loggen == "y"){
+if(hit/l*100 >= percent && sum/l >= minphred && l >= minlen && l <= maxlen){
+  if(loggen == 1){
   print $1" #LOG# len="l" perc_match_nt="hit/l*100" min_phred="min" max_phred="max" match_phred="hit" avg_phred="sum/l
   print $2
   print $3
