@@ -1,0 +1,55 @@
+#/bin/bash
+## qfilter by Röbbe Wünschiers / Version 1.0
+while getopts "p:s:m:l:h" opt; do
+  case $opt in
+     h) echo "show_help";
+        exit 1 ;;
+     p) Percent=${OPTARG} ;;
+     s) Phred=${OPTARG} ;;
+     m) Min=${OPTARG} ;;
+     l) Log=${OPTARG} ;;
+     *) echo "exit" ;;
+  esac
+done
+
+if [ "$#" -ne 9 ]; then
+  echo "Usage: $0 -s MIN_NT_PHRED_SCORE -p PERCENT_MIN_NT_PHRED_SCORE -m MIN_AVG_PHRED_SCORE -l LOG_FILE(y/n) [ -h ]" INPUT_FASTQ_FILE 1>&2
+  exit 1
+fi
+
+cat $9 | paste - - - - | awk -F"\t" -v percent=$Percent -v phred=$Phred -v minphred=$Min -v loggen=$Log '
+BEGIN{for(n=0;n<256;n++)ord[sprintf("%c",n)]=n}
+{hit=0; min=255; max=0; sum=0;
+l=length($4); split($4,qual,"");
+# print $4
+# print "Phred: "phred" Percent: "percent" Minimum: "minphred
+for(i in qual){
+  sum = sum + ord[qual[i]]-33
+  if(ord[qual[i]]-33 > max){max = ord[qual[i]]-33}
+  if(ord[qual[i]]-33 < min){min = ord[qual[i]]-33}
+  if(ord[qual[i]]>=33+phred){
+    hit++
+    }
+  }
+
+# print l,hit, hit/l*100, min, max, sum/l ;print "-";
+
+if(loggen == "y"){
+  print $1" #LOG# len="l" perc_match_nt="hit/l*100" min_phred="min" max_phred="max" match_phred="hit" avg_phred="sum/l > "rwfilter.log"
+  print $2 >> "rwfilter.log"
+  print $3 >> "rwfilter.log"
+  print $4 >> "rwfilter.log"
+  }
+
+if(hit/l*100 >= percent && sum/l >= minphred){
+  if(loggen == "y"){
+  print $1" #LOG# len="l" perc_match_nt="hit/l*100" min_phred="min" max_phred="max" match_phred="hit" avg_phred="sum/l
+  print $2
+  print $3
+  print $4
+  }
+  else {
+  print $1"\n"$2"\n"$3"\n"$4
+  }
+  }}'
+exit 0
