@@ -1,5 +1,5 @@
 #!/bin/bash
-# qfilter by Röbbe Wünschiers / Version 2.0
+# qfilter by Röbbe Wünschiers / Version 2.1
 # Set some default values:
 
 HELP=0
@@ -10,6 +10,7 @@ MIN_READ_LENGTH=800
 MAX_READ_LENGTH=50000
 LOG_FILE=0
 LOG_FILE_NAME="rwfilter.log"
+ONT=0
 
 usage()
 {
@@ -17,9 +18,11 @@ usage()
 qfilter V2.0 by Röbbe Wünschiers
 
 qfilter filters FASTQ files by PHRED quality and read length. You can set a minimum (-x) and maximum (-y) required read length. You can set a minimum PHRED score (-s) EVERY nucleotide in a read must have or the minimum PHRED score that a least x percent (-p) of all nucleotides of a read must have. Then you can set the average PHRED score (-m) a read should have.
+Oxford Nanopore Technologies uses a different way to average Q-scores. In fact, they convert each PHRED score to a probability (p=10^-q/10), calculate the mean for a read and convert the result back (-10*log10(p)) to a PHRED score. If you wish to follow this way, use option -o.
 The output to STDOUT contains all matching reads (filtered). If logging (-l) is enabled, annotations are added to the identifier line. The optional logfile (-l or -lFILENAME) contains ALL reads (not filtered) with annotation in the identifier line.
 
-Usage: alphabet [ -h | --help ]
+Usage: qfilter  [ -h | --help ]
+                [ -o | --ont  ]                                                 default: $ONT (0=off)
                 [ -p | --percent-min-phred-score PERCENT_MIN_NT_PHRED_SCORE]    default: $PERCENT_MIN_NT_PHRED_SCORE
                 [ -s | --min-nt-phred-score MIN_NT_PHRED_SCORE ]                default: $MIN_AVG_PHRED_SCORE
                 [ -m | --min-avg-phred-score MIN_AVG_PHRED_SCORE ]              default: $MIN_AVG_PHRED_SCORE
@@ -33,11 +36,12 @@ if [ $# -eq 0 ]; then
         usage
 fi
 
-PARSED_ARGUMENTS=$(getopt -n usage -o hp:s:m:l::x:y: -l help,percent-min-phred-score:,min-nt-phred-score:,min-avg-phred-score:,log-file::,min-read-length:,max-read-lengt: -- "$@")
+PARSED_ARGUMENTS=$(getopt -n usage -o hop:s:m:l::x:y: -l help,ont,percent-min-phred-score:,min-nt-phred-score:,min-avg-phred-score:,log-file::,min-read-length:,max-read-lengt: -- "$@")
 VALID_ARGUMENTS=$?
 if [ "$VALID_ARGUMENTS" != "0" ]; then
   usage
 fi
+
 
 # echo "PARSED_ARGUMENTS is $PARSED_ARGUMENTS"
 eval set -- "$PARSED_ARGUMENTS"
@@ -45,6 +49,7 @@ while :
 do
   case "$1" in
     -h | --help)   usage      ; shift   ;;
+    -o | --ont)   ONT=1      ; shift   ;;
     -p | --percent-min-phred-score)   PERCENT_MIN_NT_PHRED_SCORE="$2"      ; shift 2  ;;
     -s | --min-nt-phred-score) MIN_NT_PHRED_SCORE="$2" ; shift 2 ;;
     -m | --min-avg-phred-score)   MIN_AVG_PHRED_SCORE="$2"   ; shift 2 ;;
@@ -72,14 +77,15 @@ if [[ -z $LOG_FILE_NAME ]]; then LOG_FILE_NAME="rwfilter.log"; fi
 #echo "LOG_FILE : $LOG_FILE"
 #echo "Parameters remaining are: $@"
 
-cat $@ | paste - - - - | awk -F"\t" -v logfile=$LOG_FILE_NAME -v percent=$PERCENT_MIN_NT_PHRED_SCOR -v phred=$MIN_NT_PHRED_SCORE -v minphred=$MIN_AVG_PHRED_SCORE -v loggen=$LOG_FILE -v minlen=$MIN_READ_LENGTH -v maxlen=$MAX_READ_LENGTH '
+cat $@ | paste - - - - | awk -F"\t" -v ont=$ONT -v logfile=$LOG_FILE_NAME -v percent=$PERCENT_MIN_NT_PHRED_SCOR -v phred=$MIN_NT_PHRED_SCORE -v minphred=$MIN_AVG_PHRED_SCORE -v loggen=$LOG_FILE -v minlen=$MIN_READ_LENGTH -v maxlen=$MAX_READ_LENGTH '
 BEGIN{for(n=0;n<256;n++)ord[sprintf("%c",n)]=n}
-{hit=0; min=255; max=0; sum=0;
+{hit=0; min=255; max=0; sum=0; sumprob=0;
 l=length($4); split($4,qual,"");
 # print $4
 # print "Phred: "phred" Percent: "percent" Minimum: "minphred
 for(i in qual){
   sum = sum + ord[qual[i]]-33
+  sumprob = sumprob + 10^(-1*(ord[qual[i]]-33)/10)
   if(ord[qual[i]]-33 > max){max = ord[qual[i]]-33}
   if(ord[qual[i]]-33 < min){min = ord[qual[i]]-33}
   if(ord[qual[i]]>=33+phred){
@@ -90,21 +96,33 @@ for(i in qual){
 # print l,hit, hit/l*100, min, max, sum/l ;print "-";
 
 if(loggen == 1){
-  print $1" #LOG# len="l" perc_match_nt="hit/l*100" min_phred="min" max_phred="max" match_phred="hit" avg_phred="sum/l > logfile
+        print $1" #LOG# len="l" perc_match_nt="hit/l*100" min_phred="min" max_phred="max" match_phred="hit" avg_phred="sum/l" avg_ont_phred="(-10*(log(sumprob/l)/log(10))) > logfile
   print $2 >> logfile
   print $3 >> logfile
   print $4 >> logfile
   }
 
-if(hit/l*100 >= percent && sum/l >= minphred && l >= minlen && l <= maxlen){
-  if(loggen == 1){
-  print $1" #LOG# len="l" perc_match_nt="hit/l*100" min_phred="min" max_phred="max" match_phred="hit" avg_phred="sum/l
-  print $2
-  print $3
-  print $4
+  if(ont == 0){  
+        if(hit/l*100 >= percent && sum/l >= minphred && l >= minlen && l <= maxlen){
+                if(loggen == 1){
+                        print $1" #LOG# len="l" perc_match_nt="hit/l*100" min_phred="min" max_phred="max" match_phred="hit" avg_phred="sum/l" avg_ont_phred="(-10*(log(sumprob/l)/log(10)))
+                        print $2; print $3; print $4
+                }
+                else {
+                        print $1"\n"$2"\n"$3"\n"$4
+                }
+        }
   }
   else {
-  print $1"\n"$2"\n"$3"\n"$4
+          if(hit/l*100 >= percent && (-10)*(log(sumprob/l)/log(10)) >= minphred && l >= minlen && l <= maxlen){
+                if(loggen == 1){
+                        print $1" #LOG# len="l" perc_match_nt="hit/l*100" min_phred="min" max_phred="max" match_phred="hit" avg_phred="sum/l" avg_ont_phred="(-10*(log(sumprob/l)/log(10)))
+                        print $2; print $3; print $4
+                }
+                else {
+                        print $1"\n"$2"\n"$3"\n"$4
+                }
+        }
   }
-  }}'
+}'
 exit 0
