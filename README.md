@@ -6,7 +6,7 @@ Oxford Nanopore Technologies uses a different way to average Q-scores. In fact, 
 The output to STDOUT contains all matching reads (filtered). If logging (-l) is enabled, annotations are added to the identifier line. The optional logfile (-l or -lFILENAME) contains ALL reads (not filtered) with annotation in the identifier line.
 
 ### Installation
-Download *qfilter* from git. Put the file *qfilter* wherever you want, e.g., as superuser into the */usr/local/bin/* folder. Make the *qfilter* executable with `chmod 755 qfilter`. Run with `./qfilter` `path/qfilter` or `qfilter`, depending where you put the file. 
+Download *qfilter* from git. Put the file *qfilter* wherever you want, e.g., as superuser into the */usr/local/bin/* folder. Make the *qfilter* executable with `chmod 755 qfilter`. Run with `./qfilter`, `path/qfilter` or `qfilter`, depending where you put the file. 
 
 ### Usage
 ```
