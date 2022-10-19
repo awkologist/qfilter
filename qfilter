@@ -36,7 +36,7 @@ if [ $# -eq 0 ]; then
         usage
 fi
 
-PARSED_ARGUMENTS=$(getopt -n usage -o hop:s:m:l::x:y: -l help,ont,percent-min-phred-score:,min-nt-phred-score:,min-avg-phred-score:,log-file::,min-read-length:,max-read-lengt: -- "$@")
+PARSED_ARGUMENTS=$(getopt -n usage -o hop:s:m:l::x:y: -l help,ont,percent-min-phred-score:,min-nt-phred-score:,min-avg-phred-score:,log-file::,min-read-length:,max-read-length: -- "$@")
 VALID_ARGUMENTS=$?
 if [ "$VALID_ARGUMENTS" != "0" ]; then
   usage
