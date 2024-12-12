@@ -106,9 +106,9 @@ if(loggen == 1){
 # print $4
 # print mintext,maxtext
 # print "min: "min" max: "max" hit: "hit" l: "l" sum: "sum" percent: "percent
-print "int(hit/l*100), percent, sum/l, minphred, l, minlen, l, maxlen"
+# print "int(hit/l*100), percent, sum/l, minphred, l, minlen, l, maxlen"
   if(ont == 0){  
-	  print int(hit/l*100), percent, sum/l, minphred, l, minlen, l, maxlen
+	  # print int(hit/l*100), percent, sum/l, minphred, l, minlen, l, maxlen
      if(int(hit/l*100) >= percent && sum/l >= minphred && l >= minlen && l <= maxlen){
                 if(loggen == 1){
                         print $1" #LOG# len="l" perc_match_nt="hit/l*100" min_phred="min" max_phred="max" match_phred="hit" avg_phred="sum/l" avg_ont_phred="(-10*(log(sumprob/l)/log(10)))
@@ -120,7 +120,7 @@ print "int(hit/l*100), percent, sum/l, minphred, l, minlen, l, maxlen"
         }
   }
   else { # print "h:"hit" l:"l"p:"percent
-	  print hit/l*100, percent, (-10)*(log(sumprob/l)/log(10)), minphred, l, minlen, l, maxlen
+	  # print hit/l*100, percent, (-10)*(log(sumprob/l)/log(10)), minphred, l, minlen, l, maxlen
           if(hit/l*100 >= percent && (-10)*(log(sumprob/l)/log(10)) >= minphred && l >= minlen && l <= maxlen){
                 if(loggen == 1){
                         print $1" #LOG# len="l" perc_match_nt="hit/l*100" min_phred="min" max_phred="max" match_phred="hit" avg_phred="sum/l" avg_ont_phred="(-10*(log(sumprob/l)/log(10)))
