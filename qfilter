@@ -24,7 +24,7 @@ The output to STDOUT contains all matching reads (filtered). If logging (-l) is 
 Usage: qfilter  [ -h | --help ]
                 [ -o | --ont  ]                                                 default: $ONT (0=off)
                 [ -p | --percent-min-phred-score PERCENT_MIN_NT_PHRED_SCORE]    default: $PERCENT_MIN_NT_PHRED_SCORE
-                [ -s | --min-nt-phred-score MIN_NT_PHRED_SCORE ]                default: $MIN_AVG_PHRED_SCORE
+                [ -s | --min-nt-phred-score MIN_NT_PHRED_SCORE ]                default: $MIN_NT_PHRED_SCORE
                 [ -m | --min-avg-phred-score MIN_AVG_PHRED_SCORE ]              default: $MIN_AVG_PHRED_SCORE
                 [ -x | --min-read-length MIN_READ_LENGTH ]                      default: $MIN_READ_LENGTH
                 [ -y | --max-read-length MAX_READ_LENGTH ]                      default: $MAX_READ_LENGTH
@@ -77,18 +77,19 @@ if [[ -z $LOG_FILE_NAME ]]; then LOG_FILE_NAME="rwfilter.log"; fi
 #echo "LOG_FILE : $LOG_FILE"
 #echo "Parameters remaining are: $@"
 
-cat $@ | paste - - - - | awk -F"\t" -v ont=$ONT -v logfile=$LOG_FILE_NAME -v percent=$PERCENT_MIN_NT_PHRED_SCOR -v phred=$MIN_NT_PHRED_SCORE -v minphred=$MIN_AVG_PHRED_SCORE -v loggen=$LOG_FILE -v minlen=$MIN_READ_LENGTH -v maxlen=$MAX_READ_LENGTH '
+cat $@ | paste - - - - | awk -F"\t" -v ont=$ONT -v logfile=$LOG_FILE_NAME -v percent=$PERCENT_MIN_NT_PHRED_SCORE -v phred=$MIN_NT_PHRED_SCORE -v minphred=$MIN_AVG_PHRED_SCORE -v loggen=$LOG_FILE -v minlen=$MIN_READ_LENGTH -v maxlen=$MAX_READ_LENGTH '
 BEGIN{for(n=0;n<256;n++)ord[sprintf("%c",n)]=n}
 {hit=0; min=255; max=0; sum=0; sumprob=0;
 l=length($4); split($4,qual,"");
 # print $4
 # print "Phred: "phred" Percent: "percent" Minimum: "minphred
 for(i in qual){
-  sum = sum + ord[qual[i]]-33
-  sumprob = sumprob + 10^(-1*(ord[qual[i]]-33)/10)
-  if(ord[qual[i]]-33 > max){max = ord[qual[i]]-33}
-  if(ord[qual[i]]-33 < min){min = ord[qual[i]]-33}
-  if(ord[qual[i]]>=33+phred){
+#	print "trans: " i, qual[i], ord[qual[i]]
+  sum = sum + ord[qual[i]]
+  sumprob = sumprob + 10^(-1*(ord[qual[i]])/10)
+  if(ord[qual[i]] > max){max = ord[qual[i]]}
+  if(ord[qual[i]] < min){min = ord[qual[i]]}
+  if(ord[qual[i]] >= phred){
     hit++
     }
   }
@@ -113,7 +114,7 @@ if(loggen == 1){
                 }
         }
   }
-  else {
+  else { # print "h:"hit" l:"l"p:"percent
           if(hit/l*100 >= percent && (-10)*(log(sumprob/l)/log(10)) >= minphred && l >= minlen && l <= maxlen){
                 if(loggen == 1){
                         print $1" #LOG# len="l" perc_match_nt="hit/l*100" min_phred="min" max_phred="max" match_phred="hit" avg_phred="sum/l" avg_ont_phred="(-10*(log(sumprob/l)/log(10)))
